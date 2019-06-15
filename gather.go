@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/pion/stun"
+	"github.com/pion/transport/vnet"
 	"github.com/pion/turnc"
 )
 
@@ -14,8 +15,8 @@ const (
 	stunGatherTimeout = time.Second * 5
 )
 
-func localInterfaces(networkTypes []NetworkType) (ips []net.IP) {
-	ifaces, err := net.Interfaces()
+func (a *Agent) localInterfaces(networkTypes []NetworkType) (ips []net.IP) {
+	ifaces, err := a.net.Interfaces()
 	if err != nil {
 		return ips
 	}
@@ -73,9 +74,9 @@ func localInterfaces(networkTypes []NetworkType) (ips []net.IP) {
 	return ips
 }
 
-func listenUDP(portMax, portMin int, network string, laddr *net.UDPAddr) (*net.UDPConn, error) {
+func (a *Agent) listenUDP(portMax, portMin int, network string, laddr *net.UDPAddr) (vnet.UDPPacketConn, error) {
 	if (laddr.Port != 0) || ((portMin == 0) && (portMax == 0)) {
-		return net.ListenUDP(network, laddr)
+		return a.net.ListenUDP(network, laddr)
 	}
 	var i, j int
 	i = portMin
@@ -87,7 +88,7 @@ func listenUDP(portMax, portMin int, network string, laddr *net.UDPAddr) (*net.U
 		j = 0xFFFF
 	}
 	for i <= j {
-		c, e := net.ListenUDP(network, &net.UDPAddr{IP: laddr.IP, Port: i})
+		c, e := a.net.ListenUDP(network, &net.UDPAddr{IP: laddr.IP, Port: i})
 		if e == nil {
 			return c, e
 		}
@@ -164,13 +165,13 @@ func (a *Agent) gatherCandidatesLocal(networkTypes []NetworkType) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
-	localIPs := localInterfaces(networkTypes)
+	localIPs := a.localInterfaces(networkTypes)
 	wg.Add(len(localIPs) * len(supportedNetworks))
 	for _, ip := range localIPs {
 		for _, network := range supportedNetworks {
 			go func(network string, ip net.IP) {
 				defer wg.Done()
-				conn, err := listenUDP(int(a.portmax), int(a.portmin), network, &net.UDPAddr{IP: ip, Port: 0})
+				conn, err := a.listenUDP(int(a.portmax), int(a.portmin), network, &net.UDPAddr{IP: ip, Port: 0})
 				if err != nil {
 					a.log.Warnf("could not listen %s %s\n", network, ip)
 					return
@@ -240,7 +241,7 @@ func (a *Agent) gatherCandidatesSrflx(urls []*URL, networkTypes []NetworkType) {
 				continue
 			}
 
-			conn, err := listenUDP(int(a.portmax), int(a.portmin), network, &net.UDPAddr{IP: nil, Port: 0})
+			conn, err := a.listenUDP(int(a.portmax), int(a.portmin), network, &net.UDPAddr{IP: nil, Port: 0})
 			if err != nil {
 				a.log.Warnf("Failed to listen on %s for %s: %v\n", conn.LocalAddr().String(), serverAddr.String(), err)
 				continue
@@ -357,7 +358,7 @@ func (a *Agent) gatherCandidatesRelay(urls []*URL) error {
 // the XORMappedAddress returned by the stun server.
 //
 // Adapted from stun v0.2.
-func getXORMappedAddr(conn *net.UDPConn, serverAddr net.Addr, deadline time.Duration) (*stun.XORMappedAddress, error) {
+func getXORMappedAddr(conn net.PacketConn, serverAddr net.Addr, deadline time.Duration) (*stun.XORMappedAddress, error) {
 	if deadline > 0 {
 		if err := conn.SetReadDeadline(time.Now().Add(deadline)); err != nil {
 			return nil, err
@@ -369,7 +370,10 @@ func getXORMappedAddr(conn *net.UDPConn, serverAddr net.Addr, deadline time.Dura
 		}
 	}()
 	resp, err := stunRequest(
-		conn.Read,
+		func(p []byte) (int, error) {
+			n, _, errr := conn.ReadFrom(p)
+			return n, errr
+		},
 		func(b []byte) (int, error) {
 			return conn.WriteTo(b, serverAddr)
 		},
