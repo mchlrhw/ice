@@ -88,7 +88,7 @@ func (a *Agent) listenUDP(portMax, portMin int, network string, laddr *net.UDPAd
 		j = 0xFFFF
 	}
 	for i <= j {
-		laddr := &net.UDPAddr{IP: laddr.IP, Port: i}
+		laddr = &net.UDPAddr{IP: laddr.IP, Port: i}
 		c, e := a.net.ListenUDP(network, laddr)
 		if e == nil {
 			return c, e
