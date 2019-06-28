@@ -88,10 +88,12 @@ func (a *Agent) listenUDP(portMax, portMin int, network string, laddr *net.UDPAd
 		j = 0xFFFF
 	}
 	for i <= j {
-		c, e := a.net.ListenUDP(network, &net.UDPAddr{IP: laddr.IP, Port: i})
+		laddr := &net.UDPAddr{IP: laddr.IP, Port: i}
+		c, e := a.net.ListenUDP(network, laddr)
 		if e == nil {
 			return c, e
 		}
+		a.log.Debugf("failed to listen %s: %v", laddr.String(), e)
 		i++
 	}
 	return nil, ErrPort
@@ -235,7 +237,7 @@ func (a *Agent) gatherCandidatesSrflx(urls []*URL, networkTypes []NetworkType) {
 			}
 
 			hostPort := fmt.Sprintf("%s:%d", url.Host, url.Port)
-			serverAddr, err := net.ResolveUDPAddr(network, hostPort)
+			serverAddr, err := a.net.ResolveUDPAddr(network, hostPort)
 			if err != nil {
 				a.log.Warnf("failed to resolve stun host: %s: %v", hostPort, err)
 				continue
@@ -307,11 +309,11 @@ func (a *Agent) gatherCandidatesRelay(urls []*URL) error {
 			return ErrPasswordEmpty
 		}
 
-		raddr, err := net.ResolveUDPAddr(network, fmt.Sprintf("%s:%d", url.Host, url.Port))
+		raddr, err := a.net.ResolveUDPAddr(network, fmt.Sprintf("%s:%d", url.Host, url.Port))
 		if err != nil {
 			return err
 		}
-		c, err := net.DialUDP(network, nil, raddr)
+		c, err := a.net.DialUDP(network, nil, raddr)
 		if err != nil {
 			return err
 		}

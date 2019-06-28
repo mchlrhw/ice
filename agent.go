@@ -309,6 +309,9 @@ func NewAgent(config *AgentConfig) (*Agent, error) {
 		a.net = vnet.NewNet(nil)
 	} else {
 		a.log.Warn("vnet is enabled")
+		if a.mDNSMode != MulticastDNSModeDisabled {
+			a.log.Warn("vnet does not support mDNS yet")
+		}
 	}
 
 	if config.MaxBindingRequests == nil {

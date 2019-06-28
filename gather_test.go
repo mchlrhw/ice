@@ -25,7 +25,10 @@ func TestListenUDP(t *testing.T) {
 		t.Fatalf("listenUDP error with no port restriction return a nil conn")
 	}
 
-	_, err = a.listenUDP(500, 499, udp, &net.UDPAddr{IP: ip, Port: 0})
+	_, err = a.listenUDP(4999, 5000, udp, &net.UDPAddr{IP: ip, Port: 0})
+	if err == nil {
+		t.Fatal("listenUDP with invalid port range did not fail")
+	}
 	if err != ErrPort {
 		t.Fatal("listenUDP with invalid port range did not return ErrPort")
 	}
