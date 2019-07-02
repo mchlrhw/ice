@@ -310,7 +310,7 @@ func TestConnectivityVNet(t *testing.T) {
 		loggerFactory := logging.NewDefaultLoggerFactory()
 		log := loggerFactory.NewLogger("test")
 
-		// buildVNet with Full-cone NATs
+		// buildVNet with Symmetric NATs
 		v, err := buildVNet(&vnet.NATType{
 			MappingBehavior:   vnet.EndpointAddrPortDependent,
 			FilteringBehavior: vnet.EndpointAddrPortDependent,
