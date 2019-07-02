@@ -6,7 +6,7 @@ require (
 	github.com/pion/logging v0.2.1
 	github.com/pion/mdns v0.0.2
 	github.com/pion/stun v0.3.1
-	github.com/pion/transport v0.8.2
+	github.com/pion/transport v0.8.3-0.20190702210229-aad1ad7ba9ba
 	github.com/pion/turn v1.2.0
 	github.com/pion/turnc v0.0.6
 	github.com/stretchr/testify v1.3.0
