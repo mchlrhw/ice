@@ -168,24 +168,7 @@ func connectWithVNet(aAgent, bAgent *Agent) (*Conn, *Conn) {
 	return aConn, bConn
 }
 
-func pipeWithVNet(v *virtualNet) (*Conn, *Conn) {
-	urls := []*URL{
-		&URL{
-			Scheme: SchemeTypeSTUN,
-			Host:   "1.2.3.4",
-			Port:   3478,
-			Proto:  ProtoTypeUDP,
-		},
-		&URL{
-			Scheme:   SchemeTypeTURN,
-			Host:     "1.2.3.4",
-			Port:     3478,
-			Username: "user",
-			Password: "pass",
-			Proto:    ProtoTypeUDP,
-		},
-	}
-
+func pipeWithVNet(v *virtualNet, urls0, urls1 []*URL) (*Conn, *Conn) {
 	aNotifier, aConnected := onConnected()
 	bNotifier, bConnected := onConnected()
 
@@ -193,7 +176,7 @@ func pipeWithVNet(v *virtualNet) (*Conn, *Conn) {
 	wg.Add(2)
 
 	cfg0 := &AgentConfig{
-		Urls:             urls,
+		Urls:             urls0,
 		Trickle:          true,
 		NetworkTypes:     supportedNetworkTypes,
 		MulticastDNSMode: MulticastDNSModeDisabled,
@@ -222,7 +205,7 @@ func pipeWithVNet(v *virtualNet) (*Conn, *Conn) {
 	}
 
 	cfg1 := &AgentConfig{
-		Urls:             urls,
+		Urls:             urls1,
 		Trickle:          true,
 		NetworkTypes:     supportedNetworkTypes,
 		MulticastDNSMode: MulticastDNSModeDisabled,
@@ -274,6 +257,22 @@ func closePipe(t *testing.T, ca *Conn, cb *Conn) bool {
 }
 
 func TestConnectivityVNet(t *testing.T) {
+	stunServerURL := &URL{
+		Scheme: SchemeTypeSTUN,
+		Host:   "1.2.3.4",
+		Port:   3478,
+		Proto:  ProtoTypeUDP,
+	}
+
+	turnServerURL := &URL{
+		Scheme:   SchemeTypeTURN,
+		Host:     "1.2.3.4",
+		Port:     3478,
+		Username: "user",
+		Password: "pass",
+		Proto:    ProtoTypeUDP,
+	}
+
 	t.Run("Full-cone NATs", func(t *testing.T) {
 		loggerFactory := logging.NewDefaultLoggerFactory()
 		log := loggerFactory.NewLogger("test")
@@ -290,7 +289,14 @@ func TestConnectivityVNet(t *testing.T) {
 		defer v.close()
 
 		log.Debug("Connecting...")
-		ca, cb := pipeWithVNet(v)
+		urls0 := []*URL{
+			stunServerURL,
+		}
+
+		urls1 := []*URL{
+			stunServerURL,
+		}
+		ca, cb := pipeWithVNet(v, urls0, urls1)
 
 		time.Sleep(1 * time.Second)
 
@@ -316,7 +322,15 @@ func TestConnectivityVNet(t *testing.T) {
 		defer v.close()
 
 		log.Debug("Connecting...")
-		ca, cb := pipeWithVNet(v)
+		urls0 := []*URL{
+			stunServerURL,
+			turnServerURL,
+		}
+
+		urls1 := []*URL{
+			stunServerURL,
+		}
+		ca, cb := pipeWithVNet(v, urls0, urls1)
 
 		time.Sleep(1 * time.Second)
 
