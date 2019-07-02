@@ -25,7 +25,7 @@ func (v *virtualNet) close() {
 	v.wan.Stop()
 }
 
-func buildVNet() (*virtualNet, error) {
+func buildVNet(natType *vnet.NATType) (*virtualNet, error) {
 	loggerFactory := logging.NewDefaultLoggerFactory()
 
 	// WAN
@@ -48,12 +48,9 @@ func buildVNet() (*virtualNet, error) {
 
 	// LAN 0
 	lan0, err := vnet.NewRouter(&vnet.RouterConfig{
-		StaticIP: "27.1.1.1", // this router's external IP on eth0
-		CIDR:     "192.168.0.0/24",
-		NATType: &vnet.NATType{
-			MappingBehavior:   vnet.EndpointIndependent,
-			FilteringBehavior: vnet.EndpointIndependent,
-		},
+		StaticIP:      "27.1.1.1", // this router's external IP on eth0
+		CIDR:          "192.168.0.0/24",
+		NATType:       natType,
 		LoggerFactory: loggerFactory,
 	})
 	if err != nil {
@@ -73,12 +70,9 @@ func buildVNet() (*virtualNet, error) {
 
 	// LAN 1
 	lan1, err := vnet.NewRouter(&vnet.RouterConfig{
-		StaticIP: "28.1.1.1", // this router's external IP on eth0
-		CIDR:     "10.2.0.0/24",
-		NATType: &vnet.NATType{
-			MappingBehavior:   vnet.EndpointIndependent,
-			FilteringBehavior: vnet.EndpointIndependent,
-		},
+		StaticIP:      "28.1.1.1", // this router's external IP on eth0
+		CIDR:          "10.2.0.0/24",
+		NATType:       natType,
 		LoggerFactory: loggerFactory,
 	})
 	if err != nil {
@@ -280,22 +274,55 @@ func closePipe(t *testing.T, ca *Conn, cb *Conn) bool {
 }
 
 func TestConnectivityVNet(t *testing.T) {
-	loggerFactory := logging.NewDefaultLoggerFactory()
-	log := loggerFactory.NewLogger("test")
+	t.Run("Full-cone NATs", func(t *testing.T) {
+		loggerFactory := logging.NewDefaultLoggerFactory()
+		log := loggerFactory.NewLogger("test")
 
-	v, err := buildVNet()
-	if !assert.NoError(t, err, "should succeed") {
-		return
-	}
-	defer v.close()
+		// buildVNet with Full-cone NATs
+		v, err := buildVNet(&vnet.NATType{
+			MappingBehavior:   vnet.EndpointIndependent,
+			FilteringBehavior: vnet.EndpointIndependent,
+		})
 
-	log.Debug("Connecting...")
-	ca, cb := pipeWithVNet(v)
+		if !assert.NoError(t, err, "should succeed") {
+			return
+		}
+		defer v.close()
 
-	time.Sleep(1 * time.Second)
+		log.Debug("Connecting...")
+		ca, cb := pipeWithVNet(v)
 
-	log.Debug("Closing...")
-	if !closePipe(t, ca, cb) {
-		return
-	}
+		time.Sleep(1 * time.Second)
+
+		log.Debug("Closing...")
+		if !closePipe(t, ca, cb) {
+			return
+		}
+	})
+
+	t.Run("Symmetric NATs", func(t *testing.T) {
+		loggerFactory := logging.NewDefaultLoggerFactory()
+		log := loggerFactory.NewLogger("test")
+
+		// buildVNet with Full-cone NATs
+		v, err := buildVNet(&vnet.NATType{
+			MappingBehavior:   vnet.EndpointAddrPortDependent,
+			FilteringBehavior: vnet.EndpointAddrPortDependent,
+		})
+
+		if !assert.NoError(t, err, "should succeed") {
+			return
+		}
+		defer v.close()
+
+		log.Debug("Connecting...")
+		ca, cb := pipeWithVNet(v)
+
+		time.Sleep(1 * time.Second)
+
+		log.Debug("Closing...")
+		if !closePipe(t, ca, cb) {
+			return
+		}
+	})
 }
