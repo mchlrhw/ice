@@ -321,6 +321,7 @@ func (a *Agent) gatherCandidatesRelay(urls []*URL) error {
 			Conn:     c,
 			Username: url.Username,
 			Password: url.Password,
+			Log:      a.log,
 		})
 		if clientErr != nil {
 			return clientErr

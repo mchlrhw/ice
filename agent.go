@@ -694,8 +694,8 @@ func (a *Agent) addRemoteCandidate(c Candidate) {
 
 	for _, l := range a.localCandidates[NetworkTypeUDP4] {
 		if localRelay, ok := l.(*CandidateRelay); ok {
-			if err := localRelay.addPermission(c); err != nil {
-				a.log.Errorf("Failed to create TURN permission %v", err)
+			if err := localRelay.addChannel(c); err != nil {
+				a.log.Errorf("Failed to create TURN channel %v", err)
 			}
 		}
 	}

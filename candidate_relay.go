@@ -12,9 +12,9 @@ import (
 type CandidateRelay struct {
 	candidateBase
 
-	allocation  *turnc.Allocation
-	client      io.Closer
-	permissions map[string]*turnc.Permission
+	allocation *turnc.Allocation
+	client     io.Closer
+	channelMap map[string]*turnc.Channel
 }
 
 // CandidateRelayConfig is the config required to create a new CandidateRelay
@@ -64,7 +64,7 @@ func NewCandidateRelay(config *CandidateRelayConfig) (*CandidateRelay, error) {
 				Port:    config.RelPort,
 			},
 		},
-		permissions: map[string]*turnc.Permission{},
+		channelMap: map[string]*turnc.Channel{},
 	}, nil
 }
 
@@ -80,7 +80,7 @@ func (c *CandidateRelay) start(a *Agent, conn net.PacketConn) {
 func (c *CandidateRelay) close() error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	for _, p := range c.permissions {
+	for _, p := range c.channelMap {
 		if err := p.Close(); err != nil {
 			return err
 		}
@@ -91,15 +91,15 @@ func (c *CandidateRelay) close() error {
 	return c.client.Close()
 }
 
-func (c *CandidateRelay) addPermission(dst Candidate) error {
-	permission, err := c.allocation.Create(dst.addr())
+func (c *CandidateRelay) addChannel(dst Candidate) error {
+	ch, err := c.allocation.Create(dst.addr())
 	if err != nil {
 		return err
 	}
 
 	c.lock.Lock()
-	c.permissions[dst.String()] = permission
-	if err = c.permissions[dst.String()].Bind(); err != nil {
+	c.channelMap[dst.String()] = ch
+	if err = c.channelMap[dst.String()].Bind(); err != nil {
 		c.agent().log.Warnf("Failed to Create ChannelBind for %v: %v", dst.String, err)
 	}
 	c.lock.Unlock()
@@ -108,10 +108,12 @@ func (c *CandidateRelay) addPermission(dst Candidate) error {
 		log := c.agent().log
 		buffer := make([]byte, receiveMTU)
 		for {
-			n, err := permission.Read(buffer)
+			n, err := ch.Read(buffer)
 			if err != nil {
 				return
 			}
+
+			log.Debugf("candidate relay received %d bytes", n)
 
 			handleInboundCandidateMsg(c, buffer[:n], remoteAddr, log)
 		}
@@ -120,10 +122,10 @@ func (c *CandidateRelay) addPermission(dst Candidate) error {
 }
 
 func (c *CandidateRelay) writeTo(raw []byte, dst Candidate) (int, error) {
-	permission, ok := c.permissions[dst.String()]
+	ch, ok := c.channelMap[dst.String()]
 	if !ok {
-		return 0, errors.New("no permission created for remote candidate")
+		return 0, errors.New("no channel created for remote candidate")
 	}
 
-	return permission.Write(raw)
+	return ch.Write(raw)
 }
